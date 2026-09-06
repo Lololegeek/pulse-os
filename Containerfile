@@ -1,6 +1,14 @@
 ARG FEDORA_VERSION=44
-FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
+FROM fedora:${FEDORA_VERSION} AS native-builder
+RUN dnf5 -y install gcc-c++ cmake ninja-build && dnf5 clean all
+COPY src/ /src/
+RUN cmake -S /src -B /build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build /build --parallel
+
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 ARG FEDORA_VERSION=44
 
 # RPM Fusion is required for Steam and selected multimedia/gaming packages.
@@ -28,12 +36,14 @@ RUN dnf5 -y install \
       scx-scheds \
       lm_sensors pciutils usbutils nvme-cli smartmontools \
       btop htop jq curl wget git rsync \
-      polkit dbus-daemon util-linux \
+      polkit dbus-daemon util-linux libstdc++ \
       zram-generator && \
     dnf5 clean all
 
-# PulseOS configuration and services.
+# PulseOS configuration, services and native performance daemon.
 COPY rootfs/ /
+COPY --from=native-builder /build/pulse-perfd /usr/libexec/pulseos/pulse-perfd
+RUN chmod 0755 /usr/libexec/pulseos/pulse-perfd
 
 # Branding. Keep Fedora identity in ID_LIKE for compatibility.
 RUN printf '%s\n' \
@@ -58,6 +68,6 @@ RUN bootc container lint
 LABEL containers.bootc=1 \
       ostree.bootable=1 \
       org.opencontainers.image.title="PulseOS Gaming" \
-      org.opencontainers.image.description="Gaming-first Fedora bootc OS with Gamescope, Proton and scx_lavd" \
+      org.opencontainers.image.description="Gaming-first Fedora bootc OS with Gamescope, Proton, native PulseOS performance policy and scx_lavd" \
       org.opencontainers.image.source="https://github.com/Lololegeek/pulse-os" \
       org.opencontainers.image.licenses="GPL-3.0-or-later"
