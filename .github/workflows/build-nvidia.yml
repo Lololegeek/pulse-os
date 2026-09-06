@@ -1,0 +1,48 @@
+name: Build NVIDIA image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: pulseos-nvidia-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE: ghcr.io/lololegeek/pulse-os-nvidia
+
+jobs:
+  nvidia:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman shellcheck
+
+      - name: Verify
+        run: ./scripts/verify.sh
+
+      - name: Build base image
+        run: sudo podman build --pull=newer -t localhost/pulse-os:ci -f Containerfile .
+
+      - name: Build NVIDIA image
+        run: |
+          sudo podman build \
+            --pull=newer \
+            --build-arg BASE_IMAGE=localhost/pulse-os:ci \
+            --build-arg NVIDIA_OPEN=1 \
+            -t "${REGISTRY_IMAGE}:${GITHUB_SHA}" \
+            -f Containerfile.nvidia .
+
+      - name: Log in and push
+        run: |
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" | \
+            sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          sudo podman push "${REGISTRY_IMAGE}:${GITHUB_SHA}"
