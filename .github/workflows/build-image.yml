@@ -1,0 +1,174 @@
+name: Build PulseOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+concurrency:
+  group: pulseos-build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE: ghcr.io/lololegeek/pulse-os
+
+jobs:
+  build:
+    name: Build OCI image and installer ISO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          sudo apt-get clean
+          df -h /
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman shellcheck
+          podman --version
+
+      - name: Verify source tree
+        run: ./scripts/verify.sh
+
+      - name: Compute build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          short_sha="${GITHUB_SHA::7}"
+          sha_ref="${REGISTRY_IMAGE}:${GITHUB_SHA}"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+            if [[ "$release_version" != "$version" ]]; then
+              echo "VERSION ($version) does not match tag ($GITHUB_REF_NAME)" >&2
+              exit 1
+            fi
+            update_ref="${REGISTRY_IMAGE}:stable"
+          else
+            update_ref="${REGISTRY_IMAGE}:edge"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "sha_ref=$sha_ref" >> "$GITHUB_OUTPUT"
+          echo "update_ref=$update_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: |
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" | \
+            sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build PulseOS bootc image
+        run: |
+          sudo podman build \
+            --pull=newer \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.version=${{ steps.meta.outputs.version }}" \
+            -t "${{ steps.meta.outputs.sha_ref }}" \
+            -f Containerfile .
+
+      - name: Publish immutable image
+        run: sudo podman push "${{ steps.meta.outputs.sha_ref }}"
+
+      - name: Publish edge channel
+        if: github.ref_type == 'branch' && github.ref_name == 'main'
+        run: |
+          sudo podman tag "${{ steps.meta.outputs.sha_ref }}" "${REGISTRY_IMAGE}:edge"
+          sudo podman push "${REGISTRY_IMAGE}:edge"
+
+      - name: Publish release channels
+        if: github.ref_type == 'tag'
+        run: |
+          sudo podman tag "${{ steps.meta.outputs.sha_ref }}" "${REGISTRY_IMAGE}:${{ steps.meta.outputs.version }}"
+          sudo podman tag "${{ steps.meta.outputs.sha_ref }}" "${REGISTRY_IMAGE}:stable"
+          sudo podman push "${REGISTRY_IMAGE}:${{ steps.meta.outputs.version }}"
+          sudo podman push "${REGISTRY_IMAGE}:stable"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign immutable OCI image
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${{ steps.meta.outputs.sha_ref }}"
+
+      - name: Build installer environment
+        run: |
+          sudo podman build \
+            --pull=newer \
+            --build-arg "PULSEOS_SOURCE_REF=${{ steps.meta.outputs.sha_ref }}" \
+            --build-arg "PULSEOS_UPDATE_REF=${{ steps.meta.outputs.update_ref }}" \
+            -t "localhost/pulse-os-installer:${GITHUB_SHA}" \
+            -f installer/Containerfile .
+
+      - name: Build installer ISO
+        run: |
+          ./scripts/build-iso.sh \
+            "localhost/pulse-os-installer:${GITHUB_SHA}" \
+            "${{ steps.meta.outputs.sha_ref }}" \
+            output
+
+      - name: Prepare release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          iso="$(find output -type f -name '*.iso' -print -quit)"
+          if [[ -z "$iso" ]]; then
+            echo "Image Builder did not produce an ISO" >&2
+            find output -maxdepth 4 -type f -ls || true
+            exit 1
+          fi
+          out="release/PulseOS-Gaming-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}.iso"
+          cp --reflink=auto "$iso" "$out"
+          (cd release && sha256sum "$(basename "$out")" > "$(basename "$out").sha256")
+          ls -lh release
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PulseOS-Gaming-ISO-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="release-notes-${GITHUB_REF_NAME}.md"
+          cat > "$notes" <<EOF
+          # PulseOS ${{ steps.meta.outputs.version }}
+
+          Installer ISO and SHA-256 checksum generated from commit \`${GITHUB_SHA}\`.
+
+          OCI image:
+          \`ghcr.io/lololegeek/pulse-os:${{ steps.meta.outputs.version }}\`
+
+          PulseOS is pre-1.0 software. Review the README and known limitations before installing.
+          EOF
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "PulseOS ${{ steps.meta.outputs.version }}" \
+            --notes-file "$notes" \
+            --verify-tag
