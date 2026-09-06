@@ -24,8 +24,15 @@ jobs:
           base64 --decode /tmp/pulseos-source.tar.gz.b64 > /tmp/pulseos-source.tar.gz
           tar -tzf /tmp/pulseos-source.tar.gz >/dev/null
           tar -xzf /tmp/pulseos-source.tar.gz -C .
+
+          # GitHub's Actions token cannot create/update workflow files. Keep the
+          # bootstrap workflow untouched and let the GitHub connector install
+          # the real CI workflows immediately after this source import.
+          rm -f .github/workflows/build-image.yml
+          rm -f .github/workflows/build-nvidia.yml
+          rm -f .github/workflows/verify.yml
+
           rm -f pulseos-source.tar.gz.b64 pulseos-source.part-* .pulseos-bootstrap-ready
-          rm -f .github/workflows/bootstrap-source.yml
 
       - name: Commit imported source
         shell: bash
