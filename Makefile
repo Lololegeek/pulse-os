@@ -29,7 +29,7 @@ iso: installer-image
 	./scripts/build-iso.sh $(INSTALLER_IMAGE) $(IMAGE) $(OUTPUT)
 
 wsl-iso:
-	IMAGE=$(IMAGE) INSTALLER_IMAGE=$(INSTALLER_IMAGE) UPDATE_REF=$(UPDATE_REF) OUTPUT=$(OUTPUT) ./scripts/build-wsl-iso.sh
+	IMAGE=$(IMAGE) INSTALLER_IMAGE=$(INSTALLER_IMAGE) UPDATE_REF=$(UPDATE_REF) OUTPUT=$(OUTPUT) bash ./scripts/build-wsl-iso.sh
 
 qcow2: image
 	mkdir -p $(OUTPUT)
