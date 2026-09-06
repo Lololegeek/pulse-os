@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir=/run/pulseos
+previous_file="$state_dir/previous-tuned-profile"
+active=0
+mkdir -p "$state_dir"
+
+have_game_marker() {
+  compgen -G '/run/user/*/pulseos/gaming-active' >/dev/null
+}
+
+get_profile() {
+  command -v tuned-adm >/dev/null 2>&1 || return 1
+  LC_ALL=C tuned-adm active 2>/dev/null | sed -n 's/^Current active profile: //p' | head -1
+}
+
+profile_exists() {
+  LC_ALL=C tuned-adm list 2>/dev/null | grep -Eq "(^|[[:space:]])-?[[:space:]]*$1([[:space:]]|$)"
+}
+
+enter_gaming() {
+  local prev
+  prev="$(get_profile || true)"
+  [[ -n "$prev" ]] && printf '%s\n' "$prev" > "$previous_file"
+  if command -v tuned-adm >/dev/null 2>&1 && profile_exists latency-performance; then
+    tuned-adm profile latency-performance || true
+  fi
+  active=1
+  logger -t pulseos "gaming performance profile active"
+}
+
+leave_gaming() {
+  local prev=balanced
+  [[ -r "$previous_file" ]] && prev="$(cat "$previous_file")"
+  if command -v tuned-adm >/dev/null 2>&1 && [[ -n "$prev" ]]; then
+    tuned-adm profile "$prev" || tuned-adm profile balanced || true
+  fi
+  rm -f "$previous_file"
+  active=0
+  logger -t pulseos "restored previous performance profile"
+}
+
+cleanup() {
+  (( active == 1 )) && leave_gaming || true
+}
+trap cleanup EXIT INT TERM
+
+while sleep 1; do
+  if have_game_marker; then
+    (( active == 0 )) && enter_gaming
+  else
+    (( active == 1 )) && leave_gaming
+  fi
+done

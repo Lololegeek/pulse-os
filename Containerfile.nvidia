@@ -1,0 +1,43 @@
+ARG FEDORA_VERSION=44
+ARG BASE_IMAGE=localhost/pulse-os:dev
+
+# Discover the exact kernel embedded in the bootc image.
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION} AS kernel-query
+RUN kver="$(cd /usr/lib/modules && echo *)" && printf '%s' "$kver" > /kernel-version
+
+# Build the RPM Fusion kmod against that exact kernel. This fails the image
+# build rather than leaving a broken driver to be compiled on the user's PC.
+FROM fedora:${FEDORA_VERSION} AS kmod-builder
+ARG FEDORA_VERSION=44
+ARG NVIDIA_OPEN=1
+COPY --from=kernel-query /kernel-version /kernel-version
+RUN dnf -y install \
+      https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm \
+      https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm && \
+    kver="$(cat /kernel-version)" && \
+    dnf -y install akmods gcc gcc-c++ make elfutils-libelf-devel \
+      "kernel-devel-${kver}" xorg-x11-drv-nvidia-kmodsrc akmod-nvidia && \
+    if [[ "$NVIDIA_OPEN" == "1" ]]; then echo '%_with_kmod_nvidia_open 1' > /etc/rpm/macros.nvidia-kmod; fi && \
+    akmods --force --kernels "$kver" && \
+    mkdir -p /out && \
+    find /var/cache/akmods/nvidia -type f -name "*${kver}*.rpm" -exec cp -v {} /out/ \; && \
+    test -n "$(find /out -type f -name '*.rpm' -print -quit)"
+
+FROM ${BASE_IMAGE}
+COPY --from=kmod-builder /out/ /tmp/pulseos-nvidia-kmods/
+
+RUN dnf5 -y install \
+      xorg-x11-drv-nvidia xorg-x11-drv-nvidia-libs xorg-x11-drv-nvidia-libs.i686 \
+      xorg-x11-drv-nvidia-cuda-libs xorg-x11-drv-nvidia-cuda-libs.i686 \
+      nvidia-settings nvidia-persistenced \
+      /tmp/pulseos-nvidia-kmods/*.rpm && \
+    dnf5 clean all && rm -rf /tmp/pulseos-nvidia-kmods
+
+RUN mkdir -p /usr/lib/bootc/kargs.d /etc/modprobe.d && \
+    printf 'kargs = ["rd.driver.blacklist=nouveau", "modprobe.blacklist=nouveau", "nvidia-drm.modeset=1"]\n' \
+      > /usr/lib/bootc/kargs.d/20-nvidia.toml && \
+    printf 'blacklist nouveau\noptions nouveau modeset=0\n' > /etc/modprobe.d/pulseos-nouveau-blacklist.conf && \
+    systemctl enable nvidia-persistenced.service && \
+    bootc container lint
+
+LABEL org.opencontainers.image.title="PulseOS Gaming NVIDIA"

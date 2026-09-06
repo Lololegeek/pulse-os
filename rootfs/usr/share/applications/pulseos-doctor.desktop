@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=PulseOS Diagnostics
+Comment=Open a terminal with gaming-stack diagnostics
+Exec=konsole -e /usr/local/bin/pulseosctl doctor
+Icon=utilities-system-monitor
+Terminal=false
+Type=Application
+Categories=System;

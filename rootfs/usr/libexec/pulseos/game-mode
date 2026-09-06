@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cmd="${1:-}"
+base="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulseos"
+mkdir -p "$base"
+
+case "$cmd" in
+  start)
+    # LAVD runs globally in autopilot. GameMode separately raises the CPU and
+    # platform performance policy for the requesting game.
+    modprobe ntsync 2>/dev/null || true
+    touch "$base/gaming-active"
+    ;;
+  stop)
+    rm -f "$base/gaming-active"
+    ;;
+  *)
+    echo "usage: $0 {start|stop}" >&2
+    exit 2
+    ;;
+esac

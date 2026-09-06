@@ -1,0 +1,61 @@
+name: Performance regression
+description: Report lower FPS, worse frame pacing, stutter or latency with measurements
+title: "[Performance]: "
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Performance reports need an apples-to-apples baseline. Please use the same hardware, game scene and settings for both results.
+  - type: input
+    id: versions
+    attributes:
+      label: Baseline and affected versions
+      placeholder: "0.1.0 -> edge abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and display
+      description: CPU, GPU, RAM speed/capacity, display refresh/VRR, storage.
+    validations:
+      required: true
+  - type: textarea
+    id: software
+    attributes:
+      label: Game and software versions
+      description: Game build, Proton version, kernel and Mesa/NVIDIA driver if known.
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Game settings and benchmark scene
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results
+      description: Include average FPS and 1% lows/p99 frametime. Three runs are preferred.
+      placeholder: |
+        Baseline run 1: avg ..., 1% low ..., p99 ...
+        Baseline run 2: ...
+        Affected run 1: ...
+    validations:
+      required: true
+  - type: textarea
+    id: observations
+    attributes:
+      label: Frametime / thermal observations
+      description: Stutter pattern, clocks, power, temperatures, cold/warm shader cache, etc.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Validation
+      options:
+        - label: Both sets of results were recorded on the same machine with equivalent settings.
+          required: true
+        - label: I did not intentionally disable security mitigations or overclock only one side of the comparison.
+          required: true

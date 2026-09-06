@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Never compete for storage/network bandwidth with an active GameMode client.
+if compgen -G '/run/user/*/pulseos/gaming-active' >/dev/null; then
+  echo "PulseOS: game active, deferring OS update"
+  exit 0
+fi
+
+# Avoid staging a large image on a low battery.
+for bat in /sys/class/power_supply/BAT*; do
+  [[ -e "$bat" ]] || continue
+  status="$(cat "$bat/status" 2>/dev/null || true)"
+  cap="$(cat "$bat/capacity" 2>/dev/null || echo 100)"
+  if [[ "$status" != "Charging" && "$status" != "Full" && "$cap" -lt 40 ]]; then
+    echo "PulseOS: battery below 40%, deferring OS update"
+    exit 0
+  fi
+done
+
+if command -v bootc >/dev/null 2>&1; then
+  exec bootc upgrade
+fi

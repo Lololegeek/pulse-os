@@ -1,0 +1,13 @@
+[Unit]
+Description=PulseOS first-boot configuration
+After=local-fs.target NetworkManager.service
+ConditionPathExists=!/var/lib/pulseos/firstboot.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/pulseos/firstboot
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Return to Gaming Mode
+Comment=Restart the session into PulseOS Gaming Mode
+Exec=/usr/local/bin/pulseosctl gaming
+Icon=applications-games
+Terminal=false
+Type=Application
+Categories=Game;System;

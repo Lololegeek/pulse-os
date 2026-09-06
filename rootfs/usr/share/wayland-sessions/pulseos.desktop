@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=PulseOS
+Comment=PulseOS gaming/desktop session wrapper
+Exec=/usr/local/bin/pulseos-session
+Type=Application
+DesktopNames=PulseOS

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cmd="${1:-status}"
+mode_dir="${XDG_CONFIG_HOME:-$HOME/.config}/pulseos"
+mode_file="$mode_dir/session"
+
+switch_mode() {
+  local target="$1"
+  mkdir -p "$mode_dir"
+  printf '%s\n' "$target" > "$mode_file"
+  if [[ -n "${XDG_SESSION_ID:-}" ]]; then
+    loginctl terminate-session "$XDG_SESSION_ID" || true
+  else
+    loginctl terminate-user "$USER" || true
+  fi
+}
+
+case "$cmd" in
+  gaming)
+    switch_mode gaming
+    ;;
+  desktop)
+    switch_mode desktop
+    ;;
+  mode)
+    if [[ -r "$mode_file" ]]; then cat "$mode_file"; else echo gaming; fi
+    ;;
+  status)
+    echo "PulseOS mode: $(if [[ -r "$mode_file" ]]; then cat "$mode_file"; else echo gaming; fi)"
+    echo "Kernel: $(uname -r)"
+    if [[ -e /dev/ntsync ]]; then echo "ntsync: ready"; else echo "ntsync: unavailable"; fi
+    if [[ -r /sys/kernel/sched_ext/state ]]; then
+      echo "sched_ext: $(cat /sys/kernel/sched_ext/state)"
+    else
+      echo "sched_ext: unavailable"
+    fi
+    systemctl --no-pager --quiet is-active pulseos-scx.service && echo "scx_lavd: active" || echo "scx_lavd: inactive"
+    command -v gamescope >/dev/null && echo "gamescope: $(gamescope --version 2>/dev/null | head -1 || true)"
+    command -v steam >/dev/null && echo "steam: installed"
+    ;;
+  doctor)
+    exec /usr/libexec/pulseos/doctor
+    ;;
+  extras)
+    if ! command -v flatpak >/dev/null 2>&1; then
+      echo "Flatpak is not installed" >&2
+      exit 1
+    fi
+    flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+    exec flatpak install --user flathub \
+      com.heroicgameslauncher.hgl \
+      net.davidotek.pupgui2
+    ;;
+  update)
+    exec sudo bootc upgrade
+    ;;
+  rollback)
+    exec sudo bootc rollback
+    ;;
+  autologin-off)
+    exec sudo rm -f /etc/sddm.conf.d/20-pulseos-autologin.conf
+    ;;
+  autologin-on)
+    user="${2:-$USER}"
+    sudo tee /etc/sddm.conf.d/20-pulseos-autologin.conf >/dev/null <<CFG
+[Autologin]
+User=$user
+Session=pulseos.desktop
+Relogin=true
+CFG
+    ;;
+  *)
+    echo "usage: pulseosctl {status|mode|gaming|desktop|doctor|extras|update|rollback|autologin-on|autologin-off}" >&2
+    exit 2
+    ;;
+esac

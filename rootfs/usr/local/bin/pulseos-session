@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode_file="${XDG_CONFIG_HOME:-$HOME/.config}/pulseos/session"
+mode="gaming"
+[[ -r "$mode_file" ]] && mode="$(tr -d '[:space:]' < "$mode_file")"
+
+case "$mode" in
+  desktop)
+    export XDG_CURRENT_DESKTOP=KDE
+    export XDG_SESSION_DESKTOP=KDE
+    exec /usr/bin/startplasma-wayland
+    ;;
+  gaming|*)
+    export XDG_CURRENT_DESKTOP=gamescope
+    export XDG_SESSION_DESKTOP=PulseOS
+    export STEAM_FORCE_DESKTOPUI_SCALING="${STEAM_FORCE_DESKTOPUI_SCALING:-1.0}"
+
+    # Start lightweight game detection. It activates GameMode only when a real
+    # Steam/Proton game process is present, not while browsing the Steam UI.
+    /usr/libexec/pulseos/gamingd &
+    gamingd_pid=$!
+    trap 'kill "$gamingd_pid" 2>/dev/null || true' EXIT INT TERM
+
+    args=(--steam --rt --adaptive-sync --xwayland-count 2)
+    [[ "${PULSEOS_ALLOW_TEARING:-0}" == "1" ]] && args+=(--immediate-flips)
+    [[ "${PULSEOS_HDR:-0}" == "1" ]] && args+=(--hdr-enabled)
+
+    # Gamescope can direct-scan-out game frames on suitable KMS paths, avoiding
+    # the extra desktop compositor layer.
+    if /usr/bin/gamescope "${args[@]}" -- /usr/bin/steam -gamepadui; then
+      exit 0
+    fi
+
+    # A failed compositor should never strand the user at a black screen.
+    echo "PulseOS: Gamescope failed; entering Plasma fallback" >&2
+    printf 'desktop\n' > "$mode_file"
+    exec /usr/bin/startplasma-wayland
+    ;;
+esac

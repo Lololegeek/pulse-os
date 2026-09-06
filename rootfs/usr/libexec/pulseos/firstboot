@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state=/var/lib/pulseos/firstboot.done
+[[ -e "$state" ]] && exit 0
+
+# Pick the first human account created by Anaconda. Avoid service accounts.
+user="$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/ {print $1; exit}')"
+if [[ -z "${user:-}" ]]; then
+  echo "PulseOS: no human user exists yet; retrying later" >&2
+  exit 1
+fi
+
+for grp in gamers gamemode video; do
+  getent group "$grp" >/dev/null 2>&1 || groupadd --system "$grp"
+  usermod -aG "$grp" "$user"
+done
+
+home="$(getent passwd "$user" | cut -d: -f6)"
+install -d -m 0700 -o "$user" -g "$user" "$home/.config/pulseos"
+printf 'gaming\n' > "$home/.config/pulseos/session"
+chown "$user:$user" "$home/.config/pulseos/session"
+chmod 0600 "$home/.config/pulseos/session"
+
+# Console-like default: boot directly to the PulseOS wrapper. The user can turn
+# autologin off later by removing this drop-in.
+install -d -m 0755 /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/20-pulseos-autologin.conf <<SDDM
+[Autologin]
+User=$user
+Session=pulseos.desktop
+Relogin=true
+SDDM
+
+# Make Flathub available for Heroic, Discord and other desktop utilities while
+# keeping the host image immutable.
+if command -v flatpak >/dev/null 2>&1; then
+  flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || true
+fi
+
+# ntsync exists on modern kernels; if absent, Proton simply falls back.
+modprobe ntsync 2>/dev/null || true
+
+touch "$state"
+echo "PulseOS first boot configured for user: $user"

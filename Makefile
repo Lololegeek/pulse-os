@@ -1,0 +1,38 @@
+SHELL := /usr/bin/bash
+PODMAN ?= sudo podman
+IMAGE ?= localhost/pulse-os:dev
+INSTALLER_IMAGE ?= localhost/pulse-os-installer:dev
+UPDATE_REF ?= ghcr.io/lololegeek/pulse-os:edge
+OUTPUT ?= $(CURDIR)/output
+
+.PHONY: image nvidia-image installer-image iso qcow2 raw verify clean
+
+image:
+	$(PODMAN) build --pull=newer -t $(IMAGE) -f Containerfile .
+
+nvidia-image: image
+	$(PODMAN) build --pull=newer --build-arg BASE_IMAGE=$(IMAGE) -t $(IMAGE)-nvidia -f Containerfile.nvidia .
+
+installer-image: image
+	$(PODMAN) build \
+	  --build-arg PULSEOS_SOURCE_REF=$(IMAGE) \
+	  --build-arg PULSEOS_UPDATE_REF=$(UPDATE_REF) \
+	  -t $(INSTALLER_IMAGE) -f installer/Containerfile .
+
+iso: installer-image
+	mkdir -p $(OUTPUT)
+	./scripts/build-iso.sh $(INSTALLER_IMAGE) $(IMAGE) $(OUTPUT)
+
+qcow2: image
+	mkdir -p $(OUTPUT)
+	./scripts/build-disk.sh $(IMAGE) qcow2 $(OUTPUT)
+
+raw: image
+	mkdir -p $(OUTPUT)
+	./scripts/build-disk.sh $(IMAGE) raw $(OUTPUT)
+
+verify:
+	./scripts/verify.sh
+
+clean:
+	rm -rf $(OUTPUT)

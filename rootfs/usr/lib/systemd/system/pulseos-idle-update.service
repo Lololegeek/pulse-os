@@ -1,0 +1,10 @@
+[Unit]
+Description=Stage a PulseOS image update when the machine is idle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/pulseos/update-if-idle
+Nice=19
+IOSchedulingClass=idle

@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible PulseOS problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a PulseOS bug. Please include enough information to reproduce it.
+  - type: input
+    id: version
+    attributes:
+      label: PulseOS version
+      description: Release, image tag, or commit SHA.
+      placeholder: "0.1.0 / edge / abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: CPU, GPU, RAM, motherboard/device, display and storage when relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installer / boot
+        - Gaming Mode / Gamescope
+        - Steam / Proton
+        - Desktop Mode / KDE
+        - GPU / display
+        - Audio
+        - Networking / Bluetooth
+        - Update / rollback
+        - Performance scheduler / GameMode
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics / logs
+      description: Paste relevant `pulseosctl doctor`, journal, Gamescope or Steam output. Remove tokens/private data first.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed passwords, tokens and other sensitive data from logs.
+          required: true

@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Detect Steam/Proton games and activate reversible host gaming policy.
+
+This deliberately does not identify games by executable name. Steam exposes
+SteamAppId in the process environment, which is a much stronger signal and also
+works for Proton children. The daemon runs as the logged-in user.
+"""
+from __future__ import annotations
+
+import os
+import signal
+import subprocess
+import time
+from pathlib import Path
+
+UID = os.getuid()
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{UID}")) / "pulseos"
+RUNTIME.mkdir(parents=True, exist_ok=True)
+
+requester: subprocess.Popen | None = None
+last_game_seen = 0.0
+
+IGNORE_EXES = {
+    "steam", "steamwebhelper", "steamservice", "gamescope", "pressure-vessel-wrap",
+    "pressure-vessel-adverb", "pv-bwrap", "reaper", "explorer.exe", "services.exe",
+    "wineserver", "winedevice.exe", "rpcss.exe",
+}
+
+
+def proc_info(pid: int):
+    p = Path("/proc") / str(pid)
+    try:
+        if p.stat().st_uid != UID:
+            return None
+        envraw = (p / "environ").read_bytes().split(b"\0")
+        env = {}
+        for item in envraw:
+            if b"=" in item:
+                k, v = item.split(b"=", 1)
+                env[k.decode(errors="ignore")] = v.decode(errors="ignore")
+        appid = env.get("SteamAppId") or env.get("SteamGameId")
+        if not appid or appid in {"0", "769"}:  # 769 is the Steam client app id.
+            return None
+        exe = (p / "comm").read_text(errors="ignore").strip()
+        if exe.lower() in IGNORE_EXES:
+            return None
+        return pid, appid, exe
+    except (FileNotFoundError, PermissionError, ProcessLookupError, OSError):
+        return None
+
+
+def find_games():
+    found = []
+    for name in os.listdir("/proc"):
+        if name.isdigit():
+            info = proc_info(int(name))
+            if info:
+                found.append(info)
+    return found
+
+
+def tune_pid(pid: int):
+    # Best-effort per-process priority. RLIMIT_NICE from the gamers group makes
+    # the small negative nice value available without root on configured logins.
+    subprocess.run(["renice", "-n", "-5", "-p", str(pid)],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["ionice", "-c", "2", "-n", "0", "-p", str(pid)],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def start_requester():
+    global requester
+    if requester is None or requester.poll() is not None:
+        # This sleeper keeps Feral GameMode active globally for exactly as long
+        # as a detected game is running. It does not wrap or inject into games.
+        requester = subprocess.Popen(
+            ["gamemoderun", "sleep", "infinity"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+def stop_requester():
+    global requester
+    if requester is not None and requester.poll() is None:
+        requester.terminate()
+        try:
+            requester.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            requester.kill()
+    requester = None
+
+
+def shutdown(*_):
+    stop_requester()
+    raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, shutdown)
+signal.signal(signal.SIGINT, shutdown)
+
+while True:
+    games = find_games()
+    now = time.monotonic()
+    if games:
+        last_game_seen = now
+        start_requester()
+        for pid, _appid, _exe in games:
+            tune_pid(pid)
+    elif requester is not None and now - last_game_seen > 8.0:
+        # Hysteresis prevents rapid governor/profile toggles during launcher handoff.
+        stop_requester()
+    time.sleep(2.0)

@@ -1,0 +1,28 @@
+# Build artifacts
+output/
+release/
+*.qcow2
+*.raw
+*.iso
+*.log
+*.sha256
+*.sha256sum
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*
+!.env.example

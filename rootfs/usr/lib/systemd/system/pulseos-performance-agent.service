@@ -1,0 +1,13 @@
+[Unit]
+Description=PulseOS reversible gaming performance policy agent
+After=tuned.service tuned-ppd.service
+Wants=tuned.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/pulseos/performance-agent
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

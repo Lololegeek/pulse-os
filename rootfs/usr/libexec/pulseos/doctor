@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -u
+
+ok=0
+warn=0
+pass() { printf '[ OK ] %s\n' "$*"; ok=$((ok+1)); }
+warning() { printf '[WARN] %s\n' "$*"; warn=$((warn+1)); }
+
+printf 'PulseOS diagnostics\n===================\n'
+printf 'OS: '; cat /etc/os-release | grep '^PRETTY_NAME=' | cut -d= -f2- | tr -d '"'
+printf 'Kernel: %s\n' "$(uname -r)"
+printf 'CPU: %s\n' "$(lscpu | awk -F: '/Model name/ {sub(/^ +/,"",$2); print $2; exit}')"
+printf 'GPU(s):\n'; lspci -nn | grep -Ei 'VGA|3D|Display' || true
+printf '\n'
+
+[[ -e /dev/ntsync ]] && pass '/dev/ntsync is available' || warning 'ntsync device is missing; Proton may use another sync path'
+[[ -d /sys/kernel/sched_ext ]] && pass 'kernel exposes sched_ext' || warning 'kernel does not expose sched_ext'
+command -v scx_lavd >/dev/null && pass 'scx_lavd installed' || warning 'scx_lavd missing'
+systemctl --quiet is-active pulseos-scx.service && pass 'scx_lavd service active' || warning 'scx_lavd service inactive/fell back to normal scheduler'
+command -v gamescope >/dev/null && pass 'Gamescope installed' || warning 'Gamescope missing'
+command -v steam >/dev/null && pass 'Steam installed' || warning 'Steam missing'
+command -v gamemoded >/dev/null && pass 'GameMode installed' || warning 'GameMode missing'
+command -v vulkaninfo >/dev/null && vulkaninfo --summary >/tmp/pulseos-vulkan.txt 2>/dev/null && pass 'Vulkan initializes' || warning 'Vulkan initialization failed'
+
+if command -v systemd-detect-virt >/dev/null && [[ "$(systemd-detect-virt 2>/dev/null || true)" != "none" ]]; then
+  warning 'running in a VM; gaming performance results are not representative'
+fi
+
+if grep -qw 'mitigations=off' /proc/cmdline; then
+  warning 'mitigations=off was supplied externally; PulseOS does not recommend this'
+else
+  pass 'CPU security mitigations were not globally disabled'
+fi
+
+printf '\nSummary: %d checks OK, %d warnings\n' "$ok" "$warn"
+printf 'Saved Vulkan summary: /tmp/pulseos-vulkan.txt (when available)\n'

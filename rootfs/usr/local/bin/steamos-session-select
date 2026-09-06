@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  plasma|desktop)
+    exec /usr/local/bin/pulseosctl desktop
+    ;;
+  gamescope|gaming)
+    exec /usr/local/bin/pulseosctl gaming
+    ;;
+  *)
+    echo "usage: steamos-session-select {plasma|gamescope}" >&2
+    exit 2
+    ;;
+esac
