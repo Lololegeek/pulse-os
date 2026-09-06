@@ -1,13 +1,18 @@
 [Unit]
-Description=PulseOS reversible gaming performance policy agent
+Description=PulseOS native reversible gaming performance daemon
 After=tuned.service tuned-ppd.service
 Wants=tuned.service
 
 [Service]
 Type=simple
-ExecStart=/usr/libexec/pulseos/performance-agent
+ExecStart=/usr/libexec/pulseos/pulse-perfd
 Restart=always
 RestartSec=2
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/pulseos
 
 [Install]
 WantedBy=multi-user.target
