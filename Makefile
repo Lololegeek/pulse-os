@@ -6,7 +6,7 @@ UPDATE_REF ?= ghcr.io/lololegeek/pulse-os:edge
 OUTPUT ?= $(CURDIR)/output
 NATIVE_BUILD ?= $(CURDIR)/build/native
 
-.PHONY: native image nvidia-image installer-image iso qcow2 raw verify clean
+.PHONY: native image nvidia-image installer-image iso wsl-iso qcow2 raw verify clean
 
 native:
 	cmake -S src -B $(NATIVE_BUILD) -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -27,6 +27,9 @@ installer-image: image
 iso: installer-image
 	mkdir -p $(OUTPUT)
 	./scripts/build-iso.sh $(INSTALLER_IMAGE) $(IMAGE) $(OUTPUT)
+
+wsl-iso:
+	IMAGE=$(IMAGE) INSTALLER_IMAGE=$(INSTALLER_IMAGE) UPDATE_REF=$(UPDATE_REF) OUTPUT=$(OUTPUT) ./scripts/build-wsl-iso.sh
 
 qcow2: image
 	mkdir -p $(OUTPUT)
