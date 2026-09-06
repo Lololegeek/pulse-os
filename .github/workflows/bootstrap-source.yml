@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - pulseos-source.tar.gz.b64
+      - .pulseos-bootstrap-ready
 
 permissions:
   contents: write
@@ -20,9 +20,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode pulseos-source.tar.gz.b64 > /tmp/pulseos-source.tar.gz
+          cat pulseos-source.part-* > /tmp/pulseos-source.tar.gz.b64
+          base64 --decode /tmp/pulseos-source.tar.gz.b64 > /tmp/pulseos-source.tar.gz
+          tar -tzf /tmp/pulseos-source.tar.gz >/dev/null
           tar -xzf /tmp/pulseos-source.tar.gz -C .
-          rm -f pulseos-source.tar.gz.b64
+          rm -f pulseos-source.tar.gz.b64 pulseos-source.part-* .pulseos-bootstrap-ready
           rm -f .github/workflows/bootstrap-source.yml
 
       - name: Commit imported source
