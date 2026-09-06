@@ -26,7 +26,7 @@ RUN dnf5 -y install \
       steam steam-devices protontricks lutris winetricks \
       mesa-dri-drivers mesa-vulkan-drivers vulkan-loader vulkan-tools \
       mesa-dri-drivers.i686 mesa-vulkan-drivers.i686 vulkan-loader.i686 \
-      libva libva-utils mesa-va-drivers mesa-vdpau-drivers \
+      libva libva-utils mesa-va-drivers \
       pipewire pipewire-alsa pipewire-pulseaudio wireplumber rtkit \
       xorg-x11-server-Xwayland \
       plasma-desktop plasma-workspace kwin sddm \
