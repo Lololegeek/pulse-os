@@ -22,34 +22,46 @@ profile_exists() {
 enter_gaming() {
   local prev
   prev="$(get_profile || true)"
-  [[ -n "$prev" ]] && printf '%s\n' "$prev" > "$previous_file"
+  if [[ -n "$prev" ]]; then
+    printf '%s\n' "$prev" > "$previous_file"
+  fi
+
   if command -v tuned-adm >/dev/null 2>&1 && profile_exists latency-performance; then
     tuned-adm profile latency-performance || true
   fi
+
   active=1
   logger -t pulseos "gaming performance profile active"
 }
 
 leave_gaming() {
   local prev=balanced
-  [[ -r "$previous_file" ]] && prev="$(cat "$previous_file")"
+  if [[ -r "$previous_file" ]]; then
+    prev="$(<"$previous_file")"
+  fi
+
   if command -v tuned-adm >/dev/null 2>&1 && [[ -n "$prev" ]]; then
     tuned-adm profile "$prev" || tuned-adm profile balanced || true
   fi
+
   rm -f "$previous_file"
   active=0
   logger -t pulseos "restored previous performance profile"
 }
 
 cleanup() {
-  (( active == 1 )) && leave_gaming || true
+  if (( active == 1 )); then
+    leave_gaming
+  fi
 }
 trap cleanup EXIT INT TERM
 
 while sleep 1; do
   if have_game_marker; then
-    (( active == 0 )) && enter_gaming
-  else
-    (( active == 1 )) && leave_gaming
+    if (( active == 0 )); then
+      enter_gaming
+    fi
+  elif (( active == 1 )); then
+    leave_gaming
   fi
 done
