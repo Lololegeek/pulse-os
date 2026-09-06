@@ -8,11 +8,8 @@ Type=simple
 ExecStart=/usr/libexec/pulseos/pulse-perfd
 Restart=always
 RestartSec=2
-NoNewPrivileges=false
-ProtectSystem=strict
-ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/run/pulseos
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
