@@ -1,0 +1,37 @@
+# PulseOS x86_64 kernel configuration fragment
+#
+# This is intentionally a fragment, not a full Fedora kernel .config. It
+# documents/defines the options PulseOS requires from its kernel baseline.
+
+# sched_ext / BPF scheduler support
+CONFIG_BPF=y
+CONFIG_BPF_SYSCALL=y
+CONFIG_BPF_JIT=y
+CONFIG_BPF_JIT_ALWAYS_ON=y
+CONFIG_BPF_JIT_DEFAULT_ON=y
+CONFIG_DEBUG_INFO_BTF=y
+CONFIG_SCHED_CLASS_EXT=y
+
+# Dynamic preemption lets the distribution choose latency/throughput policy
+# without maintaining invasive scheduler patches.
+CONFIG_PREEMPT_DYNAMIC=y
+
+# Keep scheduler topology features used by modern desktop/gaming CPUs.
+CONFIG_SCHED_AUTOGROUP=y
+CONFIG_SCHED_CORE=y
+CONFIG_SCHED_MC=y
+
+# Useful observability for validating frame-time and scheduling behavior.
+CONFIG_BPF_EVENTS=y
+CONFIG_FTRACE_SYSCALLS=y
+CONFIG_FUNCTION_TRACER=y
+CONFIG_DYNAMIC_FTRACE=y
+CONFIG_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_UPROBES=y
+CONFIG_UPROBE_EVENTS=y
+
+# Expose enough kernel metadata for BPF CO-RE schedulers and diagnostics.
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+CONFIG_IKHEADERS=y
