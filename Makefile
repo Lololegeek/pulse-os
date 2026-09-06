@@ -4,8 +4,13 @@ IMAGE ?= localhost/pulse-os:dev
 INSTALLER_IMAGE ?= localhost/pulse-os-installer:dev
 UPDATE_REF ?= ghcr.io/lololegeek/pulse-os:edge
 OUTPUT ?= $(CURDIR)/output
+NATIVE_BUILD ?= $(CURDIR)/build/native
 
-.PHONY: image nvidia-image installer-image iso qcow2 raw verify clean
+.PHONY: native image nvidia-image installer-image iso qcow2 raw verify clean
+
+native:
+	cmake -S src -B $(NATIVE_BUILD) -G Ninja -DCMAKE_BUILD_TYPE=Release
+	cmake --build $(NATIVE_BUILD) --parallel
 
 image:
 	$(PODMAN) build --pull=newer -t $(IMAGE) -f Containerfile .
@@ -35,4 +40,4 @@ verify:
 	./scripts/verify.sh
 
 clean:
-	rm -rf $(OUTPUT)
+	rm -rf $(OUTPUT) $(NATIVE_BUILD)
