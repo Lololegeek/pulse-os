@@ -18,20 +18,23 @@ RUN dnf5 -y install \
 RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi || true
 RUN mkdir -p /var/mnt
 
+# Keep this as a plain printf rather than a Dockerfile heredoc. GitHub's
+# Ubuntu 24.04 runner currently ships Podman 4.9, whose builder does not
+# reliably parse heredoc RUN bodies in this Containerfile.
 RUN mkdir -p /usr/lib/image-builder/bootc && \
-    cat > /usr/lib/image-builder/bootc/iso.yaml <<'YAML'
-label: "PulseOS-Installer"
-grub2:
-  default: "Install PulseOS Gaming"
-  timeout: 5
-  entries:
-    - name: "Install PulseOS Gaming"
-      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=PulseOS-Installer console=tty0 inst.graphical rhgb quiet"
-      initrd: "/images/pxeboot/initrd.img"
-    - name: "Install PulseOS (basic graphics)"
-      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=PulseOS-Installer console=tty0 inst.graphical nomodeset"
-      initrd: "/images/pxeboot/initrd.img"
-YAML
+    printf '%s\n' \
+      'label: "PulseOS-Installer"' \
+      'grub2:' \
+      '  default: "Install PulseOS Gaming"' \
+      '  timeout: 5' \
+      '  entries:' \
+      '    - name: "Install PulseOS Gaming"' \
+      '      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=PulseOS-Installer console=tty0 inst.graphical rhgb quiet"' \
+      '      initrd: "/images/pxeboot/initrd.img"' \
+      '    - name: "Install PulseOS (basic graphics)"' \
+      '      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=PulseOS-Installer console=tty0 inst.graphical nomodeset"' \
+      '      initrd: "/images/pxeboot/initrd.img"' \
+      > /usr/lib/image-builder/bootc/iso.yaml
 
 # The payload image is embedded by image-builder. The installed system tracks a
 # publishable OCI reference so bootc can perform atomic upgrades afterwards.
